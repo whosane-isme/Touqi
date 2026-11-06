@@ -85,6 +85,8 @@ if ($Launch) {
     $psi.WorkingDirectory = Split-Path $Emulator
     $psi.UseShellExecute = $false
     $psi.EnvironmentVariables['EDEN_NX2_DEBUG_SERVER'] = '127.0.0.1:6545'
+    # Per-present frame times (builds that support it ignore nothing else; older builds ignore it).
+    $psi.EnvironmentVariables['EDEN_NX2_FRAME_LOG'] = (Join-Path $runDir 'frames.csv')
     foreach ($pair in ($Env -split ';' | Where-Object { $_ })) {
         $k, $v = $pair -split '=', 2
         $psi.EnvironmentVariables[$k] = $v
@@ -153,8 +155,36 @@ for ($i = 0; $i -lt $frameInputs.Count; $i += $ChunkFrames) {
     })
 }
 $total = $clock.Elapsed.TotalSeconds
+$endStatus = Invoke-Oot status @{ fps_window_ms = 1000 }
 Save-OotScreenshot -Destination (Join-Path $runDir 'end.png') | Out-Null
 Disconnect-Oot
+
+# Frame-time percentiles over exactly the route's presents (needs EDEN_NX2_FRAME_LOG support).
+$frameStats = $null
+$frameCsv = Join-Path $runDir 'frames.csv'
+if ($Launch) {
+    Start-Sleep 3  # the frame log flushes every 60 presents
+    Get-Process lichii, selevet, eglantine -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep 1
+}
+if (Test-Path $frameCsv) {
+    $routeFrames = @(Import-Csv -LiteralPath $frameCsv | Where-Object {
+        [long]$_.present -gt [long]$startStatus.presents -and [long]$_.present -le [long]$endStatus.presents })
+    if ($routeFrames.Count -gt 10) {
+        $ft = @($routeFrames | ForEach-Object { [double]$_.frame_us / 1000 } | Sort-Object)
+        $pct = { param($p) $ft[[Math]::Min($ft.Count - 1, [int][Math]::Ceiling($p / 100 * $ft.Count) - 1)] }
+        $fence = ($routeFrames | ForEach-Object { [double]$_.fence_us } | Measure-Object -Average).Average / 1000
+        $frameStats = [ordered]@{
+            presents = $ft.Count
+            mean_ms = [Math]::Round(($ft | Measure-Object -Average).Average, 2)
+            p50_ms = [Math]::Round((& $pct 50), 2); p95_ms = [Math]::Round((& $pct 95), 2)
+            p99_ms = [Math]::Round((& $pct 99), 2); max_ms = [Math]::Round($ft[-1], 2)
+            over_33ms = @($ft | Where-Object { $_ -gt 33.4 }).Count
+            over_50ms = @($ft | Where-Object { $_ -gt 50 }).Count
+            fence_wait_mean_ms = [Math]::Round($fence, 2)
+        }
+    }
+}
 
 $rows | Export-Csv -LiteralPath (Join-Path $runDir 'chunks.csv') -NoTypeInformation
 Copy-Item -LiteralPath $EmulatorLog -Destination (Join-Path $runDir 'emulator.log')
@@ -172,6 +202,8 @@ $summary = [ordered]@{
     frames = $frames; seconds = [Math]::Round($total, 2)
     avg_fps = [Math]::Round($frames / $total, 1)
     low1pct_fps = [Math]::Round(1000 / (($worst1pct | Measure-Object MsPerFrame -Average).Average), 1)
+    presents_start = $startStatus.presents; presents_end = $endStatus.presents
+    frame_times = $frameStats
     median_chunk_ms = $median
     worst_chunk_ms = ($sorted[0]).ChunkMs
     hitch_chunks = $hitches.Count

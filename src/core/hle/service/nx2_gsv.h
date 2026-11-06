@@ -1846,6 +1846,29 @@ private:
                 m_stats.frame_us += frame;
                 m_stats.max_frame_us = (std::max)(m_stats.max_frame_us, frame);
                 m_stats.hitches += frame > 100'000 ? 1 : 0;
+                // EDEN_NX2_FRAME_LOG=<file>: one CSV line per present, for frame-time percentiles.
+                static std::FILE* const frame_log = [] () -> std::FILE* {
+                    const char* path = std::getenv("EDEN_NX2_FRAME_LOG");
+                    if (path == nullptr || path[0] == '\0') {
+                        return nullptr;
+                    }
+                    std::FILE* file = std::fopen(path, "w");
+                    if (file != nullptr) {
+                        std::setvbuf(file, nullptr, _IOFBF, 1 << 16);
+                        std::fputs("present,time_ms,frame_us,fence_us,composite_us,pace_us\n", file);
+                    }
+                    return file;
+                }();
+                if (frame_log != nullptr) {
+                    const double time_ms =
+                        std::chrono::duration<double, std::milli>(entered.time_since_epoch()).count();
+                    std::fprintf(frame_log, "%u,%.3f,%lld,%lld,%lld,%lld\n", m_presents, time_ms,
+                                 frame, to_us(waited - entered), to_us(composited - waited),
+                                 to_us(paced - composited));
+                    if ((m_presents % 60) == 0) {
+                        std::fflush(frame_log);
+                    }
+                }
             }
             m_stats.last_present = entered;
             if (++m_stats.presents == 600) {
