@@ -14,7 +14,13 @@ if (-not (Test-Path (Join-Path $bin 'lichii.exe'))) { throw "No lichii.exe in $b
 if (Get-Process lichii -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Dest*" }) { throw "$Dest is running" }
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 robocopy $bin $Dest /E /NFL /NDL /NJH /NJS /NP /XF *.ilk | Out-Null
-& (Join-Path $QtBin 'windeployqt.exe') --release --no-translations (Join-Path $Dest 'lichii.exe') | Out-Null
+$ErrorActionPreference = 'Continue'
+& (Join-Path $QtBin 'windeployqt.exe') --release --no-translations (Join-Path $Dest 'lichii.exe') 2>&1 | Out-Null
+$ErrorActionPreference = 'Stop'
+# Not in Qt: take the DirectX shader compiler DLLs from the official build.
+foreach ($dll in Get-ChildItem (Split-Path $UserFrom) -Filter *.dll) {
+    if (-not (Test-Path (Join-Path $Dest $dll.Name))) { Copy-Item $dll.FullName $Dest }
+}
 $user = Join-Path $Dest 'user'
 foreach ($d in 'config', 'nand', 'keys', 'cache', 'load', 'sdmc', 'amiibo') {
     $src = Join-Path $UserFrom $d
