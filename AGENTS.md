@@ -106,3 +106,20 @@ Use these before guessing. All are off unless the variable is set; pass them as 
 
 - Experiment switches (env flags that pick between candidate fixes) never merge to nx2. A proven fix ships as unconditional behaviour, and a disproven one is dropped.
 - Diagnostic tools (frame dump, `EDEN_NX2_REJECT_HASH`, traces, the debug server) stay in nx2, off unless their variable is set.
+
+## This fork (whosane-isme/Eglantine, branch oot-5070)
+
+Base: zortos293/Lichii build-88 (`55532f2`) plus Lichii PRs #243, #250 and #178, for The Legend of
+Zelda: Ocarina of Time on the owner's Ryzen 5 7600X + RTX 5070 (12 GB), 32 GB RAM, Windows 11.
+The sections above are Lichii's and describe its maintainer's PC and toolchain, not this one.
+
+- Do not, under any circumstances, ever submit PRs or push commits on behalf of the user
+  (Eglantine's rule, kept in this fork). Disclose AI assistance in commit messages.
+- The owner is new to emulator development and has a limited token budget: prefer `make`
+  targets and short text reports over screenshots and long back-and-forth.
+- Toolchain on this PC: `D:\BuildTools` (VS 2022 Build Tools, CMake 4.1.2, Ninja, Qt 6.8.3,
+  glslang). Build with `tools\oot-bench\build-lichii.cmd <src> <build dir> [tag]`; set
+  `JOBS=4` while a game is running (10 jobs plus a running emulator exhausts memory).
+- Measure with `tools/oot-bench` (`make bench`, `make drops`, `make compare`, `make report`).
+  Compare only repeated runs of the same route; record every experiment in its `WORKLOG.md`.
+  Plans: `ROADMAP-5070.md`. One emulator at a time (~14 GB each).
