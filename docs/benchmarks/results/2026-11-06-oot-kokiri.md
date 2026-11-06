@@ -38,3 +38,22 @@ Full log: [tools/oot-bench/WORKLOG.md](../../../tools/oot-bench/WORKLOG.md).
 Not merged: Lichii #192 (conflict in `vk_pipeline_cache.cpp`), `perf/gpu-parallel-record`,
 `perf/dkb-front-waits`, `fix/readback-fence-v2` (conflicts). `EDEN_NX2_PREFLUSH=1` is untested
 here (its author reports Kokiri ~26 -> ~40 FPS on a 9600X/5060 with some flicker).
+
+## Community-recommended settings vs this fork's settings
+
+Settings from a shared screenshot: GPU accuracy **Accurate (High)**, sync memory operations on,
+reactive flushing off, frame pacing 60 FPS, VSync FIFO, asynchronous GPU emulation **off**, FXAA,
+post-processing on, nearest-neighbour filter. With GPU accuracy High the emulator logs
+`GPU thread split: stopped, the accuracy settings need the caches on the front`, so all GPU
+command work runs on one thread again.
+
+| Build | Settings | Avg FPS | Median 10-frame chunk | Worst chunk |
+| --- | --- | --- | --- | --- |
+| Lichii build-88 official | recommended (Accurate) | 23.9 | 409 ms | 732 ms |
+| Touqi `nx2` | recommended (Accurate) | 24.9 | 375 ms | 719 ms |
+| Touqi `nx2` | this fork's (Fast, async on) | 36.5-39.5 | 251-274 ms | 252-273 ms (+ P95 32-34 ms) |
+
+On a Ryzen 5 7600X + RTX 5070 the recommended Accurate settings cost about a third of the frame
+rate. Use GPU accuracy Fast with asynchronous GPU emulation on for Ocarina of Time here.
+Touqi is ahead of the official build under both setups (~4-8 % in these single runs; more runs
+are needed to call that difference significant).
