@@ -26,3 +26,15 @@ Reactive flushing off 34.9 vs on 36.8; read traps off 36.2 / 38.1; pipeline prel
 33.3 / 36.6; 2x resolution + SMAA 30.9 (vs 36.4). None kept.
 
 Full log: [tools/oot-bench/WORKLOG.md](../../../tools/oot-bench/WORKLOG.md).
+
+## Combined change (Lichii perf/dkb-back-record + #264 + #268 + #259 opt-in + tracking patch)
+
+| Run | Avg FPS | P50 | P95 | P99 | Max | Frames > 33 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 36.5 | 24.27 ms | 33.10 ms | 47.37 ms | 67.05 ms | 63 |
+| 2 | 39.5 | 22.48 ms | 32.12 ms | 43.68 ms | 62.98 ms | 57 |
+| 3 | 38.5 | 22.84 ms | 33.79 ms | 41.38 ms | 60.77 ms | 77 |
+
+Not merged: Lichii #192 (conflict in `vk_pipeline_cache.cpp`), `perf/gpu-parallel-record`,
+`perf/dkb-front-waits`, `fix/readback-fence-v2` (conflicts). `EDEN_NX2_PREFLUSH=1` is untested
+here (its author reports Kokiri ~26 -> ~40 FPS on a 9600X/5060 with some flicker).

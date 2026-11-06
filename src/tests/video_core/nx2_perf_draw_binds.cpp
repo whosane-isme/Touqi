@@ -20,7 +20,7 @@
 
 namespace {
 
-// UsageTracker::Track before the full-page run.
+// Reference without the full-page-run optimization, with byte-overlap block coverage.
 class OldUsageTracker {
     static constexpr size_t BUFFER_BYTES_PER_BITSHIFT = 6;
     static constexpr size_t BUFFER_PAGE_SHIFT = 6 + BUFFER_BYTES_PER_BITSHIFT;
@@ -63,10 +63,13 @@ public:
 private:
     void TrackPage(u64 page, u64 offset, u64 size) noexcept {
         const size_t offset_in_page = offset % BUFFER_PAGE_BYTES;
-        const size_t first_bit = offset_in_page >> BUFFER_BYTES_PER_BITSHIFT;
-        const size_t num_bits = std::min<size_t>(size, BUFFER_PAGE_BYTES) >> BUFFER_BYTES_PER_BITSHIFT;
-        const size_t mask = ~u64{0} >> (64 - num_bits);
-        pages[page] |= (~u64{0} & mask) << first_bit;
+        const size_t end = offset_in_page +
+                           (std::min<size_t>)(size, BUFFER_PAGE_BYTES - offset_in_page);
+        for (size_t block = 0; block < 64; ++block) {
+            if (size != 0 && block * 64 < end && offset_in_page < (block + 1) * 64) {
+                pages[page] |= u64{1} << block;
+            }
+        }
     }
 
     std::array<std::pair<u64, u64>, 4> recent{{{~u64{0}, 0}, {~u64{0}, 0}, {~u64{0}, 0}, {~u64{0}, 0}}};
