@@ -48,6 +48,25 @@ frames; 1e6 / N). These are window means, not percentiles.
 | Selevet performance 8 (fix 25) | sylvieistaken/selevet-eglantine | Boots on RTX 5070, AV1 works, built-in Max Resolution + Dynamic FPS applied. Warm gameplay windows 26–32 ms -> **~31–39 FPS**, same range as Frizti v2, at half resolution. Owner rated it poor. Adds one frame of latency (`EDEN_NX2_FRAMES_AHEAD=0` disables). |
 | Lichii build 88 `55532f2` (MSVC, non-PGO) | zortos293/Lichii | Boots on RTX 5070 at 1x, AV1 works, built-in Max Resolution + "Dynamic FPS by Dark" applied. Owner: **graphics better than the other builds**, FPS felt very bad. First session on a cold shader cache: 30–40 FPS windows with stalls up to ~2 s (14 frames over 100 ms in one window) during t=48–83 s, then steady 59.9 FPS windows (max frame ~18 ms) from t=93–153 s. Owner confirmed the 60 FPS windows were walking outdoors; steady 59.9 FPS continued through t=213 s. **Best build on this PC so far.** Note: this counts presented frames; whether every present is a unique game frame (Dynamic FPS mod) was not verified separately. 16 `tic_limit` texture-descriptor assertions in that log. |
 
+## Frame drops on Lichii 88: what causes them
+
+1. **Pipeline (shader) builds on first sight.** Cold cache: 704 pipelines in one 10 s window,
+   2954 ms on the GPU thread -> 2 s freeze. After a restart the disk cache (1100 pipelines) left
+   ~20 per window. The cache works; new areas still stutter once.
+2. **Guest CPU reads of GPU-written memory (Reactive Flushing).** `GPU::OnCPURead`
+   (`src/video_core/gpu.cpp`) requests a sync operation and blocks in `WaitForSyncOperation` for
+   every such read. Drop windows logged ~200 reads/s; smooth 60 FPS windows logged zero.
+   Setting `use_reactive_flushing=false` for this game only (per-game ini) cut the drops a lot by
+   the owner's feel; no visual problem reported yet. Remaining spikes line up with "draws held
+   for unbuilt pipelines" (400 ms) and area loading.
+3. **Steady FPS depends on the view and is CPU-bound.** At the save's spawn point, facing the
+   village, it runs ~37 FPS with the GPU at ~41 % and the emulator using ~6.6 cores.
+
+## Benchmark baseline (tools/oot-bench)
+
+Recorded Kokiri Forest walk (1197 frames), Lichii 88, Reactive Flushing off, warm cache:
+**36.2 FPS average, approx. 1 % low 16 FPS, 2 spikes (609 ms, 515 ms) near the route's end.**
+
 ## Forks reviewed but not run
 
 - **riyadhHDA/wichforks** is a guide, not an emulator. For OoT it points to Lichii / Frizti and
