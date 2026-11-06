@@ -58,14 +58,14 @@ function Set-GameIni([string]$Pairs) {
 
 function Wait-Gameplay {
     # Title -> file select -> loading -> gameplay. Once the title runs (600 presents), press A
-    # every second until the save starts loading (fps < 30), then wait for 3 s at 25+ FPS (the spawn view runs ~37).
+    # every second until the save starts loading (fps < 30), then wait for 3 s at 15+ FPS (~37 at the spawn; ~24 with GPU accuracy High, which stops the split).
     $sawLoad = $false; $steady = 0
     $deadline = (Get-Date).AddSeconds(180)
     while ((Get-Date) -lt $deadline) {
         $st = Invoke-Oot status @{ fps_window_ms = 1000 }
         $pressing = $st.presents -gt 600
         if ($pressing -and $st.fps -lt 30) { $sawLoad = $true }
-        if ($sawLoad -and $st.fps -ge 25) { $steady++ } else { $steady = 0 }
+        if ($sawLoad -and $st.fps -ge 15) { $steady++ } else { $steady = 0 }
         if ($steady -ge 3) { return $st }
         if ($pressing -and -not $sawLoad) { Send-OotInput -Buttons @('A') -Frames 4 | Out-Null }
         Start-Sleep -Milliseconds 1000
