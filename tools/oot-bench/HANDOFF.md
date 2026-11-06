@@ -1,5 +1,21 @@
 # OoT on an RTX 5070 PC: status and handoff (branch `oot-5070`)
 
+> The fork is now presented as **Touqi** (see the root `README.md`); internal names stay
+> Eden/Eglantine/Lichii so upstream keeps merging. Frame-time percentiles are now measured
+> per run (`EDEN_NX2_FRAME_LOG`): baseline P50 ~24 ms, P95 33-35 ms, P99 41-48 ms on the route.
+> Benchmark docs: `docs/benchmarks/`; optimization index: `docs/development/optimization-log.md`.
+>
+> **Assessment (6 Nov 2026):** a stable 60 FPS needs P50 cut ~30 % and P99 ~60 %. Everything
+> cheap is already in the build; what remains (deferring GPU-written command lists, multi-threaded
+> Vulkan recording) is a large, uncertain effort. Deep work is paused. Recommended mode: benchmark
+> each new Lichii/Eglantine build with `make compare`, and contribute measurements upstream.
+>
+> **Upstream contribution candidates (the owner submits; agents never push or open PRs):**
+> 1. `EDEN_NX2_FRAME_LOG` as a small diagnostic PR to zortos293/Lichii (`nx2_gsv.h` only).
+> 2. Results on Lichii PRs #243, #250, #178: no gain on the 7600X/5070 Kokiri route
+>    (36.4 vs ~36 FPS), with the measurement method.
+> 3. `EDEN_NX2_FAST_ACQUIRE` as a discussion, not a PR: correct but not yet faster.
+
 Start here. Last updated 6 November 2026. Written by an AI agent (Claude) working with the fork
 owner; every number below was measured on the owner's PC with the tools in this folder unless it
 says otherwise. Chronological details: `WORKLOG.md`. Plans: `ROADMAP-BOTTLENECK.md`,
