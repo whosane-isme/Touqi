@@ -4,13 +4,22 @@
 #              the save has loaded into gameplay, then run the route.
 #   (no flag)  run the route from wherever Link is standing now.
 #
-# The route is fixed stick input split into 6-frame chunks; each chunk's wall time gives the frame
-# time at ~0.1 s resolution, so a single long frame shows up as a slow chunk.
+# The route is the owner's recorded input split into 10-frame chunks; each chunk's wall time gives
+# the frame time at ~0.17 s resolution, so a single long frame shows up as a slow chunk.
+#
+#   -Env 'A=1;B=0'                         environment variables for the emulator (with -Launch)
+#   -Set 'use_reactive_flushing=true'      per-game ini values for this run (with -Launch); the
+#                                          original ini is restored afterwards
 param(
     [string]$Label = 'bench',
     [switch]$Launch,
-    [string]$Launcher = 'D:\ns2\oot-lab\lichii88\Launch-Lichii88-Debug.cmd',
+    [string]$Env = '',
+    [string]$Set = '',
+    [string]$Emulator = 'D:\ns2\lichii-build88\lichii.exe',
+    [string]$Game = 'D:\ns2\game\The Legend of Zelda Ocarina of Time Switch 2 NUP Base Game\The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072].nup',
+    [string]$GameIni = 'D:\ns2\lichii-build88\user\config\custom\0400486024DEC000.ini',
     [string]$EmulatorLog = 'D:\ns2\lichii-build88\user\log\eden_log.txt',
+    [string]$OutDir = 'D:\ns2\oot-lab\bench\runs',
     [string]$Route = (Join-Path $PSScriptRoot 'routes\kokiri-walk-raw.txt'),
     [int]$FromFrame = 1000,
     [int]$ChunkFrames = 10,
@@ -19,8 +28,22 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'OotBench.psm1') -Force
 
-$runDir = Join-Path $PSScriptRoot ('runs\' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $Label)
+$runDir = Join-Path $OutDir ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $Label)
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+@{ label = $Label; env = $Env; set = $Set; route = $Route; from_frame = $FromFrame } |
+    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runDir 'config.json') -Encoding utf8
+
+function Set-GameIni([string]$Pairs) {
+    # key=value pairs for the [Renderer]/[Cpu]/... keys already present as "key\use_global=...".
+    $text = [IO.File]::ReadAllText($GameIni)
+    foreach ($pair in ($Pairs -split ';' | Where-Object { $_ })) {
+        $k, $v = $pair -split '=', 2
+        $text = [regex]::Replace($text, "(?m)^$([regex]::Escape($k))(\\default)?=.*\r?\n", '')
+        $text = [regex]::Replace($text, "(?m)^$([regex]::Escape($k))\\use_global=\w+",
+            "$k\use_global=false`n$k\default=false`n$k=$v")
+    }
+    [IO.File]::WriteAllText($GameIni, $text, [Text.UTF8Encoding]::new($false))
+}
 
 function Wait-Gameplay {
     # Title -> file select -> loading -> gameplay. Once the title runs (600 presents), press A
@@ -39,12 +62,30 @@ function Wait-Gameplay {
     throw 'Did not reach gameplay within 180 s'
 }
 
+$iniBackup = $null
 if ($Launch) {
     Get-Process lichii, selevet, eglantine -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep 3
-    & cmd /c $Launcher
-    Connect-Oot -TimeoutSeconds 120
-    Wait-Gameplay | Out-Null
+    if ($Set) {
+        $iniBackup = [IO.File]::ReadAllText($GameIni)
+        Set-GameIni $Set
+    }
+    $psi = [Diagnostics.ProcessStartInfo]::new($Emulator, ('"{0}"' -f $Game))
+    $psi.WorkingDirectory = Split-Path $Emulator
+    $psi.UseShellExecute = $false
+    $psi.EnvironmentVariables['EDEN_NX2_DEBUG_SERVER'] = '127.0.0.1:6545'
+    foreach ($pair in ($Env -split ';' | Where-Object { $_ })) {
+        $k, $v = $pair -split '=', 2
+        $psi.EnvironmentVariables[$k] = $v
+    }
+    [Diagnostics.Process]::Start($psi) | Out-Null
+    try {
+        Connect-Oot -TimeoutSeconds 120
+        Wait-Gameplay | Out-Null
+    } finally {
+        # The emulator read its config at boot; put the owner's ini back right away.
+        if ($null -ne $iniBackup) { [IO.File]::WriteAllText($GameIni, $iniBackup, [Text.UTF8Encoding]::new($false)) }
+    }
     Start-Sleep 3
 } else {
     Connect-Oot -TimeoutSeconds 10
@@ -72,6 +113,13 @@ $frameInputs = @($frameInputs)
 if (-not $frameInputs.Count) { throw "No route frames in $Route from frame $FromFrame" }
 
 $startStatus = Invoke-Oot status @{ fps_window_ms = 1000 }
+# Log timestamps run on a different clock than status uptime; note both now so spikes can be
+# matched against log lines.
+$logOffset = 0
+try {
+    $tail = Get-Content -LiteralPath $EmulatorLog -Tail 50 | Where-Object { $_ -match '^\[\s*([0-9.]+)\]' } | Select-Object -Last 1
+    if ($tail -match '^\[\s*([0-9.]+)\]') { $logOffset = [double]$Matches[1] - [double]$startStatus.uptime_s }
+} catch {}
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $rows = [Collections.Generic.List[object]]::new()
 for ($i = 0; $i -lt $frameInputs.Count; $i += $ChunkFrames) {
@@ -107,7 +155,8 @@ $worst1pct = $sorted[0..([Math]::Max(0, [int]($sorted.Count * 0.01) - 1))]
 $median = ($rows | Sort-Object ChunkMs)[[int]($rows.Count / 2)].ChunkMs
 $hitches = @($rows | Where-Object { $_.ChunkMs -gt [Math]::Max($median + $HitchMs, $median * 1.6) })
 $summary = [ordered]@{
-    label = $Label; when = (Get-Date -Format s); uptime_start = $startStatus.uptime_s
+    label = $Label; env = $Env; set = $Set; when = (Get-Date -Format s)
+    uptime_start = $startStatus.uptime_s; log_offset_s = [Math]::Round($logOffset, 2)
     frames = $frames; seconds = [Math]::Round($total, 2)
     avg_fps = [Math]::Round($frames / $total, 1)
     low1pct_fps = [Math]::Round(1000 / (($worst1pct | Measure-Object MsPerFrame -Average).Average), 1)
