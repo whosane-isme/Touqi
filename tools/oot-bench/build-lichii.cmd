@@ -25,7 +25,8 @@ if not exist "%OUT%\build.ninja" (
     -DLICHII_BUILD_TAG=%TAG% -DLICHII_BUILD_PLATFORM=windows-x86_64 ^
     "-DCMAKE_PREFIX_PATH=D:/BuildTools/Qt/6.8.3/msvc2022_64" || exit /b 1
 )
-cmake --build "%OUT%" --parallel 10 || exit /b 1
+if "%JOBS%"=="" set "JOBS=10"
+cmake --build "%OUT%" --parallel %JOBS% || exit /b 1
 exit /b 0
 
 :usage
