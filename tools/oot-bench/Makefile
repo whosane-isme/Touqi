@@ -11,7 +11,7 @@
 #   make suite                        the standard option comparison (several runs)
 #   make compare                      the same route on each build (official, Frizti v2, local)
 #   make bench ... INSTALL=<folder>   benchmark another build folder
-#   make push                         push this branch to your fork (you run it)
+#   make push                         push oot-5070 and the notes branch to your fork (you run it)
 
 PS     = powershell -NoProfile -ExecutionPolicy Bypass -File
 LABEL ?= bench
@@ -23,7 +23,7 @@ NAME  ?= route
 INSTALL ?=
 TASDIR ?= D:/ns2/frizti-v2/Lichii-Frizti-v2/user/tas
 
-.PHONY: play debug record save-route bench compare drops report suite push
+.PHONY: play debug record save-route bench compare drops report suite push push-current
 
 play:
 	cmd /c start "" /D "D:\ns2\lichii-build88" "D:\ns2\lichii-build88\lichii.exe" "D:\ns2\game\The Legend of Zelda Ocarina of Time Switch 2 NUP Base Game\The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072].nup"
@@ -63,4 +63,7 @@ suite:
 	$(MAKE) report
 
 push:
+	git -C "$(CURDIR)" push -u origin oot-5070 notes/oot-rtx5070-findings
+
+push-current:
 	git push -u origin HEAD
