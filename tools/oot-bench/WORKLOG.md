@@ -82,3 +82,25 @@ Next candidates (each needs an A/B on the route):
    uniform uploads without page-protection churn (check which are already in 88).
 3. Eglantine #681 pending wake (front oversleeps 1 ms in PendingSleep).
 4. Download path: wait for the specific write's fence instead of Scheduler::Finish.
+
+## 2026-11-06: corrected diagnosis (NOICF sample, self time on GPUBack)
+
+- Back thread: ~71 % real work, ~21 % idle waiting for the front (`BackLoop` spin 13.5 % +
+  sleep 7.4 %), ~8 % waiting for the GPU (`Scheduler::Finish` from guest readbacks).
+- Front: ~40 % draining (waiting for the back), plus list-writer and acquire waits.
+- => Front and back run largely in lockstep. The limit is the serial chain front -> back ->
+  GPU -> front, not raw back throughput. Cause: OoT generates command lists and draw parameters
+  on the GPU (compute writes lists; `list writers` 7,058 waits/s, `acquire` 3,732 drains/s with
+  only 304 real waits, `macro dma read` 255/s). Each forces the front to wait until the back
+  and the GPU have produced the words.
+- Same structure as Eglantine #681 (MKW): removing one wait moved the time to another.
+
+Ruled out: 2x resolution + SMAA costs FPS (36.4 -> 30.9 on the route), UBO reuse already in
+build-88, 4096-draw submits already in build-88, pending wake (front pending sleep 2 ms/s).
+
+Next experiments:
+1. Acquire drains: 3,732/s but only 304 waited. Check guest memory first and drain only when
+   the semaphore is not yet satisfied (verify with a check mode like EDEN_NX2_DMA_READ_CHECK).
+2. List-writer waits: classify which GPU-written lists OoT uses (compute culling output?) and
+   whether the front can parse them later (deferred) instead of waiting.
+3. Replace `Scheduler::Finish` in readbacks with a wait on the writing submission's tick.
