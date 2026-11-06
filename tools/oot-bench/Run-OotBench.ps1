@@ -25,7 +25,9 @@ param(
     [int]$ChunkFrames = 10,
     [double]$HitchMs = 50,
     # Emulator install folder (exe + portable user folder); overrides -Emulator, -GameIni, -EmulatorLog.
-    [string]$Install = ''
+    [string]$Install = '',
+    # Launch and stop once the save is in gameplay (for profiling); no route replay.
+    [switch]$BootOnly
 )
 if ($Install) {
     $exe = @('lichii.exe', 'selevet.exe', 'eglantine.exe') | ForEach-Object { Join-Path $Install $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -101,6 +103,7 @@ if ($Launch) {
 }
 
 Save-OotScreenshot -Destination (Join-Path $runDir 'start.png') | Out-Null
+if ($BootOnly) { Disconnect-Oot; Write-Output 'In gameplay.'; return }
 
 # Route: the owner's TAS recording (one line per presented frame: frame buttons lx;ly rx;ry),
 # replayed from -FromFrame in chunks of -ChunkFrames through input_sequence.

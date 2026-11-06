@@ -49,3 +49,36 @@ artifacts). Building needs VS Build Tools + Qt + CMake/Ninja (none installed; C:
   read (addresses repeat: 0x44911000, 0x303bd000, 0x12fdfc000) and whether a narrower rule works.
 - Preload all pipelines at boot; check route pipelines are in the disk cache after a run.
 - Symbolized `sample` profile of the steady 37 FPS spawn view for the CPU-bound part.
+
+## 2026-11-06 afternoon: profile of oot-5070 (build-88 + #243 #250 #178)
+
+Route: 36.4 FPS (same as official build-88, ~36), so the three PRs do not help on this PC/route.
+Built on this PC: `D:\ns2\lichii-out\b88-prs` (profiling relink with `/OPT:REF,NOICF` via a
+temporary edit of `src/CMakeLists.txt:150`; not committed).
+
+`EDEN_NX2_GPU_PROFILE=1`, per second while walking:
+- Front (GPU thread): split drain 406 ms, acquire waits 315 ms, list writers 271 ms, macro DMA
+  reads 87 ms; real work (macro, push) ~190 ms. The front mostly waits for the back.
+- Back (GPUBack): ~890 ms busy, 107 ms idle. 70k draws/s (~1,900 per frame), 4.2M methods/s
+  (1.1M same value). Per draw ~5.5 us across bind stage buffers 80 ms, update buffers 63,
+  draw 73, fill image views 36, read handles 31, dynamic state 20, pipeline lookup 17.
+  Methods 191 ms, compute 57, texture upload 50, clear 38.
+=> The back thread is saturated. Reaching 60 FPS needs roughly 40 % less back-thread work.
+
+`sample` on GPUBack (10 s, spawn view; lambda names are still misattributed even with NOICF):
+- RasterizerVulkan::Draw 45 %: buffer cache ~19 % (BindHostStageBuffers ~10 %, of which uniform
+  uploads ~8 %: ReadBlockUnsafe copies, MappedUploadMemory, SynchronizeBuffer, TouchBuffer;
+  UpdateGraphicsBuffers ~5 %; BindHostGeometryBuffers ~3 %), image descriptors/views ~4 %.
+- TickWork -> FlushRegion -> DownloadMemory -> FinishForHostRead -> Scheduler::Finish: ~9 %,
+  a full GPU idle wait per guest CPU read of GPU-written memory (the OnCPURead sync requests).
+  Removing the reads entirely (READ_TRAPS=0) gave only ~+1-2 FPS earlier: the wait moves.
+- KeplerCompute ~9 %, query CounterReport ~5 %. Non-draw method handling ~3.5 % (cb_data
+  coalescing would not pay).
+- Debug logs ("Native QMD control", ~1,500/s) are filtered before formatting: not a cost.
+
+Next candidates (each needs an A/B on the route):
+1. Uniform upload: skip the copy when the guest range is unchanged since the last bind.
+2. Selevet-8 ports not in build-88: send queued work before fence waits, 4096-draw submits,
+   uniform uploads without page-protection churn (check which are already in 88).
+3. Eglantine #681 pending wake (front oversleeps 1 ms in PendingSleep).
+4. Download path: wait for the specific write's fence instead of Scheduler::Finish.
