@@ -35,6 +35,14 @@ replayed from frame 1000 (owner's walk is frames 1058-1984).
 | base | reactive off (owner ini) | 36.2, 35.2 FPS; spikes 2, 1 |
 | suite-1 | see `make report` | running |
 
+## Code fixes found upstream (not in build-88, need a source build)
+
+zortos293/Lichii open PRs, all measured on OoT Kokiri village (4090/13900K, GPU accuracy Low):
+#243 macro DMA reads of report memory without draining the split back (+8.5 %, OoT makes ~30k/s),
+#250 page filter skips no-op cache invalidations (+3.4 %, ~88k/s), #178 skip instance-loop writes
+the back ignores (~520k draw.end/s). Together ~52 -> 58-59 FPS. Their CI did not run (no
+artifacts). Building needs VS Build Tools + Qt + CMake/Ninja (none installed; C: 20 GB, D: 24 GB free).
+
 ## Next ideas
 
 - If `EDEN_NX2_READ_TRAPS=0` removes the reads without glitches, find which guest buffers are
