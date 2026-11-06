@@ -64,6 +64,46 @@ void DrainBack() {
     VideoCommon::GpuSplit::Get().Drain(VideoCommon::DrainSite::Acquire);
 }
 
+// EDEN_NX2_FAST_ACQUIRE=1 (experiment): answer an acquire on report memory (the 4 KiB pages
+// semaphore releases and reports write, which draws and dispatches don't) from guest memory plus
+// the queued releases whose payload the front knows (GpuSplit::OverlayQueuedWrites, as the early
+// macro DMA reads do), instead of draining the back. Anything it can't know still drains.
+bool FastAcquireEnabled() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("EDEN_NX2_FAST_ACQUIRE");
+        return value != nullptr && value[0] == '1';
+    }();
+    return enabled;
+}
+
+// EDEN_NX2_FAST_ACQUIRE_CHECK=1: also drain, read the word as before and log the acquires the
+// fast path let through that the drained word would not have.
+bool FastAcquireCheck() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("EDEN_NX2_FAST_ACQUIRE_CHECK");
+        return value != nullptr && value[0] == '1';
+    }();
+    return enabled;
+}
+
+std::optional<u32> ReadQueuedSemaphoreWord(DmaPusher& dma_pusher, GPUVAddr address) {
+    auto& split = VideoCommon::GpuSplit::Get();
+    if (!split.Active()) {
+        return std::nullopt;
+    }
+    const auto device = dma_pusher.memory_manager.GpuToCpuAddress(address);
+    if (!device || !split.IsReportMemory(*device, sizeof(u32)) ||
+        split.HasAsyncWrite(*device, sizeof(u32)) != 0) {
+        return std::nullopt;
+    }
+    const u64 since = split.ConsumedNow();
+    u32 word = dma_pusher.memory_manager.Read<u32>(address);
+    if (!split.OverlayQueuedWrites(since, *device, &word, 1)) {
+        return std::nullopt;
+    }
+    return word;
+}
+
 // The fence manager records into the scheduler and downloads the CPU's writes over GPU data:
 // the back's state, which a drained back still uses from its idle hook (it submits).
 void ReleaseFences(DmaPusher& dma_pusher) {
@@ -90,6 +130,50 @@ bool Puller::PendingAcquire::Matches(u32 current) const {
 bool Puller::CanResumeAcquire(DmaPusher& dma_pusher) {
     if (!pending_acquire) {
         return true;
+    }
+    if (FastAcquireEnabled()) {
+        static std::atomic<u64> fast_hits{}, checked{}, wrong{}, missed{};
+        const auto word = ReadQueuedSemaphoreWord(dma_pusher, pending_acquire->address);
+        if (word && !pending_acquire->Matches(*word) &&
+            !Nx2SemaphoreWaiters::Get().Latched(this)) {
+            // Every queued write to the word is known and none meets the value: a drain would
+            // read the same word. Stay suspended; the next poll reads guest memory again.
+            if (!FastAcquireCheck()) {
+                return false;
+            }
+            DrainBack();
+            if (pending_acquire->Matches(ReadSemaphoreWord(dma_pusher, pending_acquire->address)) &&
+                missed.fetch_add(1, std::memory_order_relaxed) < 64) {
+                LOG_WARNING(HW_GPU, "Fast acquire check: semaphore {:#x} op {} value {:#x} met only "
+                            "after a drain (fast word {:#x})",
+                            pending_acquire->address, pending_acquire->operation,
+                            pending_acquire->value, *word);
+            }
+        }
+        if (word && pending_acquire->Matches(*word)) {
+            const u64 hits = fast_hits.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (!FastAcquireCheck()) {
+                if ((hits & 0xffff) == 1) {
+                    LOG_INFO(HW_GPU, "Fast acquire: {} acquires answered without draining", hits);
+                }
+                return true;
+            }
+            DrainBack();
+            const u32 drained = ReadSemaphoreWord(dma_pusher, pending_acquire->address);
+            checked.fetch_add(1, std::memory_order_relaxed);
+            if (!pending_acquire->Matches(drained) &&
+                wrong.fetch_add(1, std::memory_order_relaxed) < 64) {
+                LOG_WARNING(HW_GPU,
+                            "Fast acquire check: semaphore {:#x} op {} value {:#x}: fast word {:#x}, "
+                            "drained word {:#x}",
+                            pending_acquire->address, pending_acquire->operation,
+                            pending_acquire->value, *word, drained);
+            }
+            if (const u64 n = checked.load(std::memory_order_relaxed); (n & 0xfff) == 0) {
+                LOG_INFO(HW_GPU, "Fast acquire check: {} checked, {} wrong", n,
+                         wrong.load(std::memory_order_relaxed));
+            }
+        }
     }
     // The release may still be queued for the split GPU thread's back half (and the caches
     // ReadSemaphoreWord asks are its state).

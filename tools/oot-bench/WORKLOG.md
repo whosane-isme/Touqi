@@ -104,3 +104,21 @@ Next experiments:
 2. List-writer waits: classify which GPU-written lists OoT uses (compute culling output?) and
    whether the front can parse them later (deferred) instead of waiting.
 3. Replace `Scheduler::Finish` in readbacks with a wait on the writing submission's tick.
+
+## 2026-11-06: experiment EDEN_NX2_FAST_ACQUIRE (puller.cpp, off by default)
+
+Idea: answer semaphore acquires on report memory from guest memory plus the queued releases
+whose payload the front knows (`GpuSplit::OverlayQueuedWrites`, from #243), instead of draining
+the back; also stay suspended without a drain when every queued write is known and none meets
+the value. `EDEN_NX2_FAST_ACQUIRE_CHECK=1` drains anyway and compares.
+
+- Check runs: 32,768 acquires checked, 0 let through wrongly, 0 kept waiting wrongly.
+- Route, 3 runs each, profiler on: off 38.5 / 33.4 / 37.6 (avg 36.5, 10 spikes);
+  on 38.1 / 38.9 / 34.9 (avg 37.3, 6 spikes). Within noise.
+- Acquire drains stay ~3,000/s (most acquires are not on known report memory), and list-writer
+  waits rose ~6,500 -> ~9,000/s: the front reaches the next GPU-written list sooner and waits
+  there instead. Same pattern as Eglantine #681.
+
+Conclusion: the serial point is the GPU-written command lists (compute writes lists the front
+must parse). Next: find which lists/macros write them and whether their parsing can be
+deferred, or the producing compute run earlier (the GPU idles ~60 %).
