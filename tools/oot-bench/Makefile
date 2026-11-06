@@ -9,6 +9,8 @@
 #   make drops [RUN=<run dir>]        explain each spike of a run (default: latest)
 #   make report                       one line per run, to compare options
 #   make suite                        the standard option comparison (several runs)
+#   make compare                      the same route on each build (official, Frizti v2, local)
+#   make bench ... INSTALL=<folder>   benchmark another build folder
 #   make push                         push this branch to your fork (you run it)
 
 PS     = powershell -NoProfile -ExecutionPolicy Bypass -File
@@ -18,9 +20,10 @@ ENV   ?=
 SET   ?=
 RUN   ?=
 NAME  ?= route
+INSTALL ?=
 TASDIR ?= D:/ns2/frizti-v2/Lichii-Frizti-v2/user/tas
 
-.PHONY: play debug record save-route bench drops report suite push
+.PHONY: play debug record save-route bench compare drops report suite push
 
 play:
 	cmd /c start "" /D "D:\ns2\lichii-build88" "D:\ns2\lichii-build88\lichii.exe" "D:\ns2\game\The Legend of Zelda Ocarina of Time Switch 2 NUP Base Game\The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072].nup"
@@ -35,7 +38,15 @@ save-route:
 	cmd /c copy /Y "$(subst /,\,$(TASDIR))\record.txt" "routes\$(NAME).txt"
 
 bench:
-	$(PS) Invoke-OotBenchSet.ps1 -Label "$(LABEL)" -Count $(N) -Env "$(ENV)" -Set "$(SET)"
+	$(PS) Invoke-OotBenchSet.ps1 -Label "$(LABEL)" -Count $(N) -Env "$(ENV)" -Set "$(SET)" -Install "$(INSTALL)"
+
+# The same route on each build, 2 runs each. Builds need the debug server and a portable user folder.
+compare:
+	$(MAKE) bench LABEL=b88-official N=2 INSTALL="D:\ns2\lichii-build88"
+	$(MAKE) bench LABEL=frizti-v2 N=2 INSTALL="D:\ns2\frizti-v2\Lichii-Frizti-v2"
+	$(MAKE) bench LABEL=b88-local N=2 INSTALL="D:\ns2\lichii-local\base"
+	$(MAKE) bench LABEL=b88-3prs N=2 INSTALL="D:\ns2\lichii-local\prs"
+	$(MAKE) report
 
 drops:
 	$(PS) Analyze-OotDrops.ps1 -Run "$(RUN)"

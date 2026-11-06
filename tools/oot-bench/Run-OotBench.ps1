@@ -23,14 +23,23 @@ param(
     [string]$Route = (Join-Path $PSScriptRoot 'routes\kokiri-walk-raw.txt'),
     [int]$FromFrame = 1000,
     [int]$ChunkFrames = 10,
-    [double]$HitchMs = 50
+    [double]$HitchMs = 50,
+    # Emulator install folder (exe + portable user folder); overrides -Emulator, -GameIni, -EmulatorLog.
+    [string]$Install = ''
 )
+if ($Install) {
+    $exe = @('lichii.exe', 'selevet.exe', 'eglantine.exe') | ForEach-Object { Join-Path $Install $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $exe) { throw "No emulator exe in $Install" }
+    $Emulator = $exe
+    $GameIni = Join-Path $Install 'user\config\custom\0400486024DEC000.ini'
+    $EmulatorLog = Join-Path $Install 'user\log\eden_log.txt'
+}
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'OotBench.psm1') -Force
 
 $runDir = Join-Path $OutDir ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $Label)
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
-@{ label = $Label; env = $Env; set = $Set; route = $Route; from_frame = $FromFrame } |
+@{ label = $Label; env = $Env; set = $Set; route = $Route; from_frame = $FromFrame; emulator = $Emulator } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runDir 'config.json') -Encoding utf8
 
 function Set-GameIni([string]$Pairs) {
@@ -155,7 +164,7 @@ $worst1pct = $sorted[0..([Math]::Max(0, [int]($sorted.Count * 0.01) - 1))]
 $median = ($rows | Sort-Object ChunkMs)[[int]($rows.Count / 2)].ChunkMs
 $hitches = @($rows | Where-Object { $_.ChunkMs -gt [Math]::Max($median + $HitchMs, $median * 1.6) })
 $summary = [ordered]@{
-    label = $Label; env = $Env; set = $Set; when = (Get-Date -Format s)
+    label = $Label; env = $Env; set = $Set; emulator = $Emulator; when = (Get-Date -Format s)
     uptime_start = $startStatus.uptime_s; log_offset_s = [Math]::Round($logOffset, 2)
     frames = $frames; seconds = [Math]::Round($total, 2)
     avg_fps = [Math]::Round($frames / $total, 1)

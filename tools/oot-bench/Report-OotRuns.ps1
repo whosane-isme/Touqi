@@ -6,6 +6,7 @@ Get-ChildItem -LiteralPath $OutDir -Directory | Sort-Object Name | Select-Object
         $s = Get-Content -LiteralPath $f -Raw | ConvertFrom-Json
         [pscustomobject]@{
             Run = $_.Name.Substring(0, 15); Label = $s.label
+            Build = if ($s.emulator) { Split-Path (Split-Path $s.emulator) -Leaf } else { 'lichii-build88' }
             Options = (@($s.env, $s.set) | Where-Object { $_ }) -join ' '
             AvgFps = $s.avg_fps; Low1 = $s.low1pct_fps; Spikes = $s.hitch_chunks; WorstMs = $s.worst_chunk_ms
         }
