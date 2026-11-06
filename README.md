@@ -54,6 +54,10 @@ Ocarina of Time, Kokiri Forest route, 1x, Vulkan, 3 runs:
 | P50 / P95 / P99 frame time | ~24 / ~34 / 41-48 ms |
 | Host GPU busy | ~35-41 % |
 
+With the "Accurate" GPU mode some guides recommend, the emulator stops the GPU thread split and
+both Lichii build-88 and Touqi drop to ~24-25 FPS on this PC; keep GPU accuracy Fast. See
+[the results](docs/benchmarks/results/2026-11-06-oot-kokiri.md).
+
 The GPU is mostly idle: the limit is the emulator's GPU-command threads, which wait on each other
 because the game writes part of its own command lists on the GPU. No change so far has moved FPS
 beyond run-to-run noise. Details, every experiment and the open problems:
