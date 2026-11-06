@@ -5,80 +5,93 @@
 # SPDX-FileCopyrightText: 2018 yuzu Emulator Project
 # SPDX-License-Identifier: GPL-2.0-or-later
 -->
-<!-- lang: en-GB -->
 
-<h1 align="center">
-  <br>
-  <a href="https://git.eden-emu.dev/eden-emu/eden"><img src="https://github.com/user-attachments/assets/35031845-4bfa-4916-8bf5-bc3bce67d5e2" alt="Eglantine" width="200"></a>
-  <br>
-  <b>Eglantine</b>
-  <br>
-</h1>
+# Touqi
 
-<h4 align="center"><b>Eglantine</b> is a free and opensource (FOSS) Switch 2 emulator, derived from Eden, Yuzu and Sudachi - started by developer Camille LaVey.
-It's written in C++ with portability in mind, with builds for Windows, Linux and macOS
-</h4>
+**Touqi** is an experimental, open-source Nintendo Switch 2 emulator fork focused on
+performance research, reproducible benchmarking and open documentation.
 
-<p align="center">
-    </a>
-    <a href="https://discord.gg/XkS5NVPTUY">
-        <img src="https://img.shields.io/discord/1367654015269339267?color=5865F2&label=Eglantine&logo=discord&logoColor=white"
-            alt="Discord">
-    </a>
-  
-</p>
+It is based on [Lichii](https://github.com/zortos293/Lichii) (build-88), which builds on
+[Eglantine](https://github.com/Djihads80/Eglantine), started by Camille LaVey, which in turn
+builds on Eden, yuzu and Sudachi.
 
-<p align="center">
-  <a href="#compatibility">Compatibility</a> |
-  <a href="#development">Development</a> |
-  <a href="#building">Building</a> |
-  <a href="#download">Download</a> |
-  <a href="#support">Support</a> |
-  <a href="#license">License</a>
-</p>
+> **Status: experimental.** Compatibility, performance and stability vary by game, hardware and
+> configuration. Today's work targets one game (The Legend of Zelda: Ocarina of Time) on one PC
+> (Ryzen 5 7600X + RTX 5070). Touqi is not affiliated with Nintendo or endorsed by its upstream
+> projects.
 
-## Compatibility
+## Goals
 
-The emulator is capable of running Mario Kart World at decent/full speed depending on specs and configurations, and Splatoon Raiders at variable performances
+1. **Performance, measured.** Find where frame time goes (CPU threads, Vulkan submission and
+   waits, GPU) and change only what a measurement says matters. A change is kept only if it is
+   faster *and* the image and gameplay stay correct.
+2. **Reproducible benchmarking.** The same recorded controller input (TAS) replayed on every
+   build, with frame-time percentiles (P50/P95/P99), not just average FPS.
+3. **Open development.** Every experiment is written down, including the ones that failed.
 
-A list of supported games will be available in future. Please be patient.
+## Benchmark pipeline
 
-## Development
+One command per build or option (`make bench` in [tools/oot-bench](tools/oot-bench/README.md)):
 
-For development discussions, please join us on [Discord](https://discord.gg/jCCZ58VExk)
+1. **Launch** the build with the debug server and per-frame logging, closing anything running.
+2. **Boot to gameplay** automatically (presses A until the save loads).
+3. **Replay** a recorded controller route (TAS) frame by frame through the debug server.
+4. **Measure** every presented frame (P50/P95/P99, frames over 33 ms), GPU-thread zones and
+   drains, and log events around each spike.
+5. **Explain** each spike (pipeline builds, CPU reads of GPU memory, ASTC decodes) and **compare**
+   runs, options and builds in one table (`make drops`, `make report`, `make compare`).
 
-If you would like to contribute, we are open to new developers and pull requests. Please ensure that your work is of a high standard and properly documented. You can also contact any of the developers on Discord or Stoat to learn more about the current state of the emulator.
+Every run keeps its config, logs, screenshots and per-frame data, so results can be checked
+later. Methodology: [docs/benchmarks/methodology.md](docs/benchmarks/methodology.md).
 
-## Documentation
+## Where things stand (6 Nov 2026)
 
-We have a user manual! See our [User Handbook](./docs/user/README.md).
+Ocarina of Time, Kokiri Forest route, 1x, Vulkan, 3 runs:
+
+| Metric | Value |
+| --- | --- |
+| Average FPS | 36-38 |
+| P50 / P95 / P99 frame time | ~24 / ~34 / 41-48 ms |
+| Host GPU busy | ~35-41 % |
+
+The GPU is mostly idle: the limit is the emulator's GPU-command threads, which wait on each other
+because the game writes part of its own command lists on the GPU. No change so far has moved FPS
+beyond run-to-run noise. Details, every experiment and the open problems:
+[tools/oot-bench/HANDOFF.md](tools/oot-bench/HANDOFF.md).
+
+## What Touqi adds on top of Lichii build-88
+
+| Addition | Where |
+| --- | --- |
+| Lichii PRs #243, #250, #178 merged (OoT front-thread work) | `src/video_core/engines/maxwell_3d.*`, `query_cache`, ... |
+| Automated TAS benchmark: boot, load save, replay, report percentiles and spike causes | [tools/oot-bench](tools/oot-bench/README.md) |
+| `EDEN_NX2_FRAME_LOG=<file>`: per-present frame/fence/composite/pacing times (diagnostic) | `src/core/hle/service/nx2_gsv.h` |
+| `EDEN_NX2_FAST_ACQUIRE=1`: answer semaphore acquires from known queued releases (experiment, off by default, verified correct) | `src/video_core/engines/puller.cpp` |
+| Benchmark methodology and results | [docs/benchmarks](docs/benchmarks/README.md) |
+| Optimization log and upstream sync notes | [docs/development](docs/development/optimization-log.md) |
 
 ## Building
 
-See the [General Build Guide](docs/Build.md)
+Touqi uses Lichii's build system. General guide: [docs/Build.md](docs/Build.md). The exact
+Windows setup used here (MSVC Build Tools, Qt 6.8.3, CMake, Ninja) and a one-command build script:
+[tools/oot-bench/HANDOFF.md](tools/oot-bench/HANDOFF.md#how-to-work-on-it).
 
-For information on provided development tooling, see the [Tools directory](./tools)
+Only use games, keys and firmware you have legally obtained. None are included.
 
-## Download
+## Upstream and acknowledgements
 
-You can download the latest releases from [here](https://github.com/Djihads80/Eglantine/releases).
+Touqi would not exist without:
 
-## Support
+- [Lichii](https://github.com/zortos293/Lichii) by zortos293 and contributors: the direct base,
+  including the debug server, profiler and OoT work this fork measures with.
+- [Frizti/Lichii](https://github.com/Frizti/Lichii): OoT fixes integrated into Lichii.
+- [Eglantine](https://github.com/Djihads80/Eglantine), started by Camille LaVey.
+- Eden, yuzu, Sudachi and everyone who contributed to them.
 
-We currently do not take in any donations for the time being
-
-If you would prefer to support us in a different way, please join our [Discord](https://discord.gg/jCCZ58VExk)
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=djihads80%2Feglantine&type=date&legend=bottom-right">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=djihads80/eglantine&type=date&theme=dark&legend=bottom-right" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=djihads80/eglantine&type=date&legend=bottom-right" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=djihads80/eglantine&type=date&legend=bottom-right" />
- </picture>
-</a>
+Code ported from other forks keeps its authors' credit. Internal names (Eden/Eglantine/Lichii in
+paths, settings and data folders) are kept on purpose, so upstream changes keep merging cleanly.
 
 ## License
 
-Eglantine is licensed under the GPLv3 (or any later version). Refer to the [LICENSE.txt](https://github.com/Djihads80/Eglantine/blob/nx2/LICENSE.txt) file.
+Touqi keeps the open-source licenses and copyright notices inherited from upstream. See
+[LICENSE.txt](LICENSE.txt), [LICENSES](LICENSES) and the headers in each source file.

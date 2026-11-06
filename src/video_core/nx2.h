@@ -72,6 +72,28 @@ inline void Nx2MarkCommandListPage(u64 device_address) {
 }
 
 /// A new emulation session starts: no page has been written by its GPU yet.
+// Query results written when their host work completes (counter reports): per 16-byte slot
+// hash, how many the back issued and how many completed. Equal counts mean the words in memory
+// are final, so the split's front can read them without draining the back.
+inline constexpr u64 Nx2AsyncReportSlots = u64{1} << 16;
+inline std::array<std::atomic<u32>, Nx2AsyncReportSlots> g_nx2_async_reports_issued{};
+inline std::array<std::atomic<u32>, Nx2AsyncReportSlots> g_nx2_async_reports_completed{};
+
+[[nodiscard]] inline u64 Nx2AsyncReportSlot(u64 device_address) {
+    return (device_address >> 4) % Nx2AsyncReportSlots;
+}
+
+[[nodiscard]] inline bool Nx2AsyncReportsSettled(u64 device_address, u64 size) {
+    for (u64 slot = device_address >> 4; slot <= (device_address + size - 1) >> 4; ++slot) {
+        const u64 index = slot % Nx2AsyncReportSlots;
+        if (g_nx2_async_reports_completed[index].load(std::memory_order_acquire) !=
+            g_nx2_async_reports_issued[index].load(std::memory_order_acquire)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 inline void Nx2ClearGpuWrittenPages() {
     for (auto& word : g_nx2_gpu_written_pages) {
         word.store(0, std::memory_order_relaxed);
@@ -90,10 +112,6 @@ inline void Nx2ClearGpuWrittenPages() {
     return (g_nx2_gpu_written_pages[page / 64].load(std::memory_order_relaxed) >> (page % 64)) & 1;
 }
 
-// NVN2 queues release their progress values into the second page of a two-page GPU-accessible
-// region and GPU acquires read the same offsets in the first page (the CPU polls the second).
-// Something on the console copies one into the other; until that is known, the puller mirrors
-// releases that land in a second page. Every queue has such a region, so keep a small table.
 inline constexpr size_t Nx2MaxSemaphoreRegions = 32;
 inline std::array<std::atomic<u64>, Nx2MaxSemaphoreRegions> g_nx2_semaphore_regions{}; // starts
 
@@ -328,20 +346,6 @@ inline bool Nx2SparseUnwritten(u64 gpu_address, u64 size) {
         }
     }
     return true;
-}
-
-/// GPU VA in the first page that mirrors a release at `address`, or 0.
-inline u64 Nx2SemaphoreMirror(u64 address) {
-    for (const auto& region : g_nx2_semaphore_regions) {
-        const u64 start = region.load(std::memory_order_relaxed);
-        if (start == 0) {
-            continue;
-        }
-        if (address >= start + 0x1000 && address < start + 0x2000) {
-            return address - 0x1000;
-        }
-    }
-    return 0;
 }
 
 /// Channels suspended on a semaphore acquire. A console channel polls and sees every release;
