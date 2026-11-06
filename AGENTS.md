@@ -123,3 +123,5 @@ The sections above are Lichii's and describe its maintainer's PC and toolchain, 
 - Measure with `tools/oot-bench` (`make bench`, `make drops`, `make compare`, `make report`).
   Compare only repeated runs of the same route; record every experiment in its `WORKLOG.md`.
   Plans: `ROADMAP-5070.md`. One emulator at a time (~14 GB each).
+- **Read `tools/oot-bench/HANDOFF.md` first**: status, measurements, known struggles (GPU ~40 %
+  busy, CPU-side serial chain), and next steps. Update it when you finish a piece of work.

@@ -17,7 +17,7 @@ and recorded in `WORKLOG.md`.
   during drops, each a full GPU sync (`GPU::OnCPURead`).
 - Settings (reactive flushing, read traps, pipeline preload) do not move the average.
 
-## Phase 0: measure where frame time goes (do first)
+## Phase 0: measure where frame time goes (done, see HANDOFF.md and WORKLOG.md)
 
 1. `make bench ENV="EDEN_NX2_GPU_PROFILE=1"`: per-second GPU-thread time by zone (Push, Idle,
    ResumePending, PendingSleep, ...). Find how much of each frame the front spends waiting
@@ -29,7 +29,7 @@ and recorded in `WORKLOG.md`.
 
 ## Phase 1: land the known fixes (in this branch)
 
-- [x] Lichii #243, #250, #178 merged; build and benchmark against official build-88 and Frizti v2.
+- [x] Lichii #243, #250, #178 merged and built on this PC: 36.4 FPS vs ~36, no gain on this route.
 - [ ] If they help: report our numbers (7600X/5070) on those PRs. That is a useful first
       contribution and helps them merge.
 

@@ -1,5 +1,7 @@
 # OoT walk benchmark (Windows, Lichii build 88)
 
+**Start with [HANDOFF.md](HANDOFF.md)**: current status, measured results, what is hard, next steps.
+
 Replays a recorded controller walk through Kokiri Forest via the emulator's local debug server,
 reports FPS and frame-time spikes, and explains each spike from the emulator log.
 Everything runs through `make` in this folder (GNU make + Windows PowerShell).
