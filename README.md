@@ -6,92 +6,96 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-<p align="center">
-  <img src="dist/branding/lichii_icon_with_logo.png" alt="Lichii" width="600">
-</p>
+# Touqi
 
-# Lichii
+**Touqi** is an experimental, open-source Nintendo Switch 2 emulator fork focused on
+performance research, reproducible benchmarking and open documentation.
 
-Lichii is an experimental, open-source Nintendo Switch and Switch 2 emulator written in C++. It builds on Eglantine, Eden, yuzu and Sudachi, preserving their contributions while developing this fork's game compatibility and renderer fixes.
+**Touqi 2.0** is based on [Frizti/Lichii](https://github.com/Frizti/Lichii) **v3** plus newer
+[Lichii](https://github.com/zortos293/Lichii) commits; Lichii builds on [Eglantine](https://github.com/Djihads80/Eglantine), started by Camille LaVey, which in turn
+builds on Eden, yuzu and Sudachi.
 
-This is an independent fork, not an official release of those upstream projects. Lichii is not affiliated with Nintendo.
+> **Status: experimental.** Compatibility, performance and stability vary by game, hardware and
+> configuration. Today's work targets one game (The Legend of Zelda: Ocarina of Time) on one PC
+> (Ryzen 5 7600X + RTX 5070). Touqi is not affiliated with Nintendo or endorsed by its upstream
+> projects.
 
-Visit the [official Lichii website](https://lichii.zortos.me) to find games and compare community compatibility reports.
+## Goals
 
-## Downloads and setup
+1. **Performance, measured.** Find where frame time goes (CPU threads, Vulkan submission and
+   waits, GPU) and change only what a measurement says matters. A change is kept only if it is
+   faster *and* the image and gameplay stay correct.
+2. **Reproducible benchmarking.** The same recorded controller input (TAS) replayed on every
+   build, with frame-time percentiles (P50/P95/P99), not just average FPS.
+3. **Open development.** Every experiment is written down, including the ones that failed.
 
-Published builds belong on this fork's [releases page](https://github.com/zortos293/Eglantine/releases). The repository still uses its historical Eglantine name; the desktop application is now Lichii.
+## Benchmark pipeline
 
-On Windows, extract the entire build archive and run **lichii.exe**. Only use games and system files you have legally obtained. Games, keys and firmware are not included.
+One command per build or option (`make bench` in [tools/oot-bench](tools/oot-bench/README.md)):
 
-### Existing saves and settings
+1. **Launch** the build with the debug server and per-frame logging, closing anything running.
+2. **Boot to gameplay** automatically (presses A until the save loads).
+3. **Replay** a recorded controller route (TAS) frame by frame through the debug server.
+4. **Measure** every presented frame (P50/P95/P99, frames over 33 ms), GPU-thread zones and
+   drains, and log events around each spike.
+5. **Explain** each spike (pipeline builds, CPU reads of GPU memory, ASTC decodes) and **compare**
+   runs, options and builds in one table (`make drops`, `make report`, `make compare`).
 
-The rebrand intentionally retains the existing Eden/Eglantine data directories and configuration keys. It does not move or delete saves, settings or shader caches. Back up your saves before testing experimental builds.
+Every run keeps its config, logs, screenshots and per-frame data, so results can be checked
+later. Methodology: [docs/benchmarks/methodology.md](docs/benchmarks/methodology.md).
 
-## Compatibility and issue reports
+## Where things stand (6 Nov 2026)
 
-Compatibility and performance vary by game, hardware and driver. Rendering errors, stutters and crashes remain possible. Passing automated tests does not establish that a game renders correctly, and this project makes no universal frame-rate guarantee.
+Ocarina of Time, Kokiri Forest route, 1x, Vulkan, 3 runs:
 
-Browse [community compatibility reports](https://lichii.zortos.me/reports) for results with each player's build and setup.
+| Metric | Value |
+| --- | --- |
+| Average FPS | 36-38 |
+| P50 / P95 / P99 frame time | ~24 / ~34 / 41-48 ms |
+| Host GPU busy | ~35-41 % |
 
-Desktop reporting requires a build containing [PR #303](https://github.com/zortos293/Lichii/pull/303) and is not available in build 88. In builds that include it, play and stop a Switch 2 game, then right-click that game and choose **Submit compatibility report**. Only the latest session in the current Lichii process is eligible.
+With the "Accurate" GPU mode some guides recommend, the emulator stops the GPU thread split and
+both Lichii build-88 and Touqi drop to ~24-25 FPS on this PC; keep GPU accuracy Fast. See
+[the results](docs/benchmarks/results/2026-11-06-oot-kokiri.md).
 
-Confirm the matching website catalog entry and review the editable machine, game, setup, and enabled add-on details prefilled where available. Check the public preview and give explicit consent before submitting. Nothing uploads automatically, and the native v1 reporter does not read or upload logs or files.
+The GPU is mostly idle: the limit is the emulator's GPU-command threads, which wait on each other
+because the game writes part of its own command lists on the GPU. No change so far has moved FPS
+beyond run-to-run noise. Details, every experiment and the open problems:
+[tools/oot-bench/HANDOFF.md](tools/oot-bench/HANDOFF.md).
 
-When [reporting an issue](https://github.com/zortos293/Eglantine/issues), include:
+## What Touqi 2.0 adds on top of Frizti v3
 
-- The exact build, game version, CPU, GPU and driver version.
-- Relevant settings and steps to reproduce the problem.
-- A screenshot and the log from the affected session, after checking it for personal information.
+| Addition | Where |
+| --- | --- |
+| Lichii nx2 commits after Frizti v3 that apply cleanly: #412 (drop redundant per-draw bookkeeping on the back thread), #410 (OoT foliage pointers), #398, #232, #284, #314, #303, #324 | `src/video_core`, `src/shader_recompiler`, ... |
+| Automated TAS benchmark: boot, load save, replay, report percentiles and spike causes | [tools/oot-bench](tools/oot-bench/README.md) |
+| `EDEN_NX2_FRAME_LOG=<file>`: per-present frame/fence/composite/pacing times (diagnostic) | `src/core/hle/service/nx2_gsv.h` |
+| Benchmark methodology and results | [docs/benchmarks](docs/benchmarks/README.md) |
+| Optimization log and upstream sync notes | [docs/development](docs/development/optimization-log.md) |
 
-Do not upload game files, keys, firmware or private account information.
+## Building
 
-## Building and contributing
+Touqi uses Lichii's build system. General guide: [docs/Build.md](docs/Build.md). The exact
+Windows setup used here (MSVC Build Tools, Qt 6.8.3, CMake, Ninja) and a one-command build script:
+[tools/oot-bench/HANDOFF.md](tools/oot-bench/HANDOFF.md#how-to-work-on-it).
 
-See the [build guide](docs/Build.md), [user documentation](docs/user/README.md) and [coding guidelines](docs/Coding.md). Some inherited documentation and internal build target names still use upstream names. The GUI build target remains `yuzu`; its output is `lichii.exe` on Windows and `lichii` on other desktop platforms.
+Only use games, keys and firmware you have legally obtained. None are included.
 
-Keep changes focused and distinguish code-level checks from actual gameplay testing.
+## Upstream and acknowledgements
 
-## Artwork
-Art created by YOB (yobslab)
-The supplied Lichii logo, icon and library artwork are in [dist/branding](dist/branding). Windows, Linux and macOS icon resources are generated from that artwork by [Generate-LichiiIcons.ps1](tools/Generate-LichiiIcons.ps1).
+Touqi would not exist without:
 
-## Support Lichii
+- [Lichii](https://github.com/zortos293/Lichii) by zortos293 and contributors: Frizti's base,
+  including the debug server, profiler and OoT work this fork measures with.
+- [Frizti/Lichii](https://github.com/Frizti/Lichii) v3: the direct base of Touqi 2.0 (frame pacer,
+  dedicated GPU-thread cores, DMA snapshot fix, shader stutter fixes, OoT built-in settings).
+- [Eglantine](https://github.com/Djihads80/Eglantine), started by Camille LaVey.
+- Eden, yuzu, Sudachi and everyone who contributed to them.
 
-Lichii is free and stays free. If you want to help, you can donate in crypto. Donations help pay for the AI tools and build machines used to develop this open-source project faster.
+Code ported from other forks keeps its authors' credit. Internal names (Eden/Eglantine/Lichii in
+paths, settings and data folders) are kept on purpose, so upstream changes keep merging cleanly.
 
-**Solana (SOL)**
-```text
-JepEjfyWjGjhJvHSrqj52KtLjcbbbmUh1iGqerYBF4w
-```
+## License
 
-**Ethereum (ETH)**
-```text
-0x055ABa1b80Bc35C836Ce7E9F47c2b3d6C75b5534
-```
-
-**Bitcoin (BTC)**
-```text
-bc1qcvxdpf4qvdhqp8ee4s355cjmxrzsphsdwpl8w4
-```
-
-**BNB Smart Chain (BNB)**
-```text
-0x055ABa1b80Bc35C836Ce7E9F47c2b3d6C75b5534
-```
-
-**Polygon**
-```text
-0x055ABa1b80Bc35C836Ce7E9F47c2b3d6C75b5534
-```
-
-Send each coin on its matching network. Coins sent on the wrong network can't be recovered.
-
-> [!NOTE]
-> Donations are voluntary gifts and are non-refundable. A donation does not buy any product, service, perk, early access, exclusive build, priority support or say in the project. Every release stays free and public for everyone.
-
-## Credits and license
-
-Lichii inherits the work of the Eglantine, Eden, yuzu and Sudachi projects and their contributors, including Eglantine's original developer Camille LaVey. Original copyright notices and third-party licenses are retained.
-
-See [LICENSE.txt](LICENSE.txt) and the source files for applicable license terms.
+Touqi keeps the open-source licenses and copyright notices inherited from upstream. See
+[LICENSE.txt](LICENSE.txt), [LICENSES](LICENSES) and the headers in each source file.
