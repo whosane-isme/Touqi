@@ -1867,7 +1867,8 @@ private:
                 if (frame_log != nullptr) {
                     const double time_ms =
                         std::chrono::duration<double, std::milli>(entered.time_since_epoch()).count();
-                    std::fprintf(frame_log, "%u,%.3f,%lld,%lld,%lld,%lld\n", m_presents, time_ms,
+                    std::fprintf(frame_log, "%llu,%.3f,%lld,%lld,%lld,%lld\n",
+                                 static_cast<unsigned long long>(m_presents), time_ms,
                                  frame, to_us(waited - entered), to_us(composited - waited),
                                  to_us(paced - composited));
                     if ((m_presents % 60) == 0) {
