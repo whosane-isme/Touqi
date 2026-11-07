@@ -25,8 +25,18 @@ if (EXISTS "${FRIZTI_VERSION_FILE}")
     endif()
 endif()
 
+# Touqi builds (this fork): dist/touqi_version.txt holds the version, e.g. 2.0.
+set(TOUQI_VERSION_FILE "${CMAKE_SOURCE_DIR}/dist/touqi_version.txt")
+if (EXISTS "${TOUQI_VERSION_FILE}")
+    file(STRINGS "${TOUQI_VERSION_FILE}" TOUQI_VERSION LIMIT_COUNT 1 REGEX "^[0-9.]+$")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${TOUQI_VERSION_FILE}")
+endif()
+
 if (LICHII_BUILD_TAG MATCHES "^build-[0-9]+$")
     set(BUILD_VERSION "${LICHII_BUILD_TAG}")
+    set(IS_DEV_BUILD false)
+elseif (TOUQI_VERSION)
+    set(BUILD_VERSION "Touqi ${TOUQI_VERSION}")
     set(IS_DEV_BUILD false)
 elseif (FRIZTI_VERSION)
     set(BUILD_VERSION "Frizti v${FRIZTI_VERSION}")
