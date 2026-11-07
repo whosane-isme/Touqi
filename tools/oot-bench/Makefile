@@ -21,6 +21,7 @@ SET   ?=
 RUN   ?=
 NAME  ?= route
 INSTALL ?=
+IDLE  ?= 0
 TASDIR ?= D:/ns2/frizti-v2/Lichii-Frizti-v2/user/tas
 
 .PHONY: play debug record save-route bench compare drops report suite push push-current
@@ -38,7 +39,7 @@ save-route:
 	cmd /c copy /Y "$(subst /,\,$(TASDIR))\record.txt" "routes\$(NAME).txt"
 
 bench:
-	$(PS) Invoke-OotBenchSet.ps1 -Label "$(LABEL)" -Count $(N) -Env "$(ENV)" -Set "$(SET)" -Install "$(INSTALL)"
+	$(PS) Invoke-OotBenchSet.ps1 -Label "$(LABEL)" -Count $(N) -Env "$(ENV)" -Set "$(SET)" -Install "$(INSTALL)" -IdleFrames $(IDLE)
 
 # The same route on each build, 2 runs each. Builds need the debug server and a portable user folder.
 compare:

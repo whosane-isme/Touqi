@@ -136,12 +136,18 @@ Profiling recipe used so far:
 | 2x resolution + SMAA | 30.9 vs 36.4 | Not kept |
 | Lichii #243 + #250 + #178 | 36.4 vs ~36 | Kept (no harm, upstream candidates) |
 | `EDEN_NX2_FAST_ACQUIRE=1` | 37.3 vs 36.5 (3 runs each) | Kept off by default; verified correct |
+| clang-cl + PGO + ThinLTO (Touqi 2.0) | Idle: 42.6 vs 39.6 MSVC; Frizti v3 46.4 | Kept: use `build-clang-pgo.cmd` |
 
 Ruled out because already in build-88: uniform-buffer reuse (`EDEN_NX2_UBOREUSE`), 4096 draws
 per submission, Selevet build 8's ports. Pending wake (#681) would not help: the front spends
 only ~2 ms/s in pending sleep.
 
 ## Most promising next steps
+
+Measure with `make bench IDLE=1800 N=2`: the route drifts with frame rate (see WORKLOG 2026-11-07).
+
+0. **Close the 4 FPS gap to Frizti v3:** bisect the nx2 cherry-picks on the idle benchmark, and
+   record a PGO profile of Touqi 2.0 itself instead of reusing Frizti's.
 
 1. **GPU-written command lists** (the current serial point): log which macros/addresses the
    `list writers` waits are for, which compute dispatch writes them, and whether parsing can be

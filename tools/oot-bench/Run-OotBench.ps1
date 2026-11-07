@@ -27,7 +27,11 @@ param(
     # Emulator install folder (exe + portable user folder); overrides -Emulator, -GameIni, -EmulatorLog.
     [string]$Install = '',
     # Launch and stop once the save is in gameplay (for profiling); no route replay.
-    [switch]$BootOnly
+    [switch]$BootOnly,
+    # Stand still at the spawn for this many presents instead of replaying the route. The route
+    # feeds input per present while Link moves per unit of time, so it drifts with the frame rate
+    # (into the water on slow builds, against a wall on fast ones); an idle run shows the same view.
+    [int]$IdleFrames = 0
 )
 if ($Install) {
     $exe = @('lichii.exe', 'selevet.exe', 'eglantine.exe') | ForEach-Object { Join-Path $Install $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -124,6 +128,11 @@ $frameInputs = foreach ($line in Get-Content -LiteralPath $Route) {
     }
 }
 $frameInputs = @($frameInputs)
+if ($IdleFrames -gt 0) {
+    $idle = [pscustomobject]@{ Buttons = @(); Left = @(0, 0); Right = @(0, 0) }
+    $frameInputs = @(for ($k = 0; $k -lt $IdleFrames; $k++) { $idle })
+    $FromFrame = 0
+}
 if (-not $frameInputs.Count) { throw "No route frames in $Route from frame $FromFrame" }
 
 $startStatus = Invoke-Oot status @{ fps_window_ms = 1000 }

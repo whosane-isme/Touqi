@@ -122,3 +122,15 @@ the value. `EDEN_NX2_FAST_ACQUIRE_CHECK=1` drains anyway and compares.
 Conclusion: the serial point is the GPU-written command lists (compute writes lists the front
 must parse). Next: find which lists/macros write them and whether their parsing can be
 deferred, or the producing compute run earlier (the GPU idles ~60 %).
+
+## 2026-11-07: clang PGO build and the idle benchmark
+
+Touqi 2.0 built with `build-clang-pgo.cmd` (clang-cl 23, Frizti's `eglantine.profdata`, ThinLTO).
+The route drifted with frame rate (Link reaches the water on slow builds, a wall on fast ones),
+so `Run-OotBench.ps1 -IdleFrames` / `make bench IDLE=1800` now stands still at the spawn.
+
+Idle, 2 runs each: Frizti v3 46.9 / 45.8; Touqi 2.0 PGO 42.3 / 42.8; Touqi 2.0 MSVC 39.6 / 39.5.
+PGO + ThinLTO gives +3 FPS; Frizti v3 still leads by ~4. Details:
+`docs/benchmarks/results/2026-11-07-oot-idle.md`.
+
+Builds now call themselves "Touqi <version>" (`dist/touqi_version.txt`) in the title bar.
