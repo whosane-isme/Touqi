@@ -134,3 +134,9 @@ PGO + ThinLTO gives +3 FPS; Frizti v3 still leads by ~4. Details:
 `docs/benchmarks/results/2026-11-07-oot-idle.md`.
 
 Builds now call themselves "Touqi <version>" (`dist/touqi_version.txt`) in the title bar.
+
+## 2026-11-07: gap to Frizti v3 is the build, project paused
+
+Frizti v3's source built with our script: idle 41.5 FPS vs 46.4 for the official exe (Clang 22.1.8
+vs our 23.1.5). The gap is the toolchain/profile, not Touqi's commits. Project paused; details in
+`docs/benchmarks/results/2026-11-07-oot-idle.md`.

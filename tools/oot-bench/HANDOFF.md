@@ -142,6 +142,8 @@ Ruled out because already in build-88: uniform-buffer reuse (`EDEN_NX2_UBOREUSE`
 per submission, Selevet build 8's ports. Pending wake (#681) would not help: the front spends
 only ~2 ms/s in pending sleep.
 
+**Status 2026-11-07: paused.** Touqi 2.0 code matches Frizti v3 speed when both are built the same way; the official Frizti exe is faster because of its build (Clang 22.1.8, see the 2026-11-07 results).
+
 ## Most promising next steps
 
 Measure with `make bench IDLE=1800 N=2`: the route drifts with frame rate (see WORKLOG 2026-11-07).
